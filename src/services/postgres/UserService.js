@@ -4,6 +4,7 @@ const { Pool } = require('pg');
 const bcypt = require('bcrypt');
 const InvariantError = require('../../exceptions/InvariantError');
 const NotFoundError = require('../../exceptions/NotFoundError');
+const AuthenticationError = require('../../exceptions/AuthenticationError');
 
 class UserService {
   constructor() {
@@ -51,7 +52,7 @@ class UserService {
     const result = await this._pool.query(query);
 
     if (!result.rows.length) {
-      throw new InvariantError('Kredensial yang Anda berikan salah');
+      throw new AuthenticationError('Kredensial yang Anda berikan salah');
     }
 
     const { id, password: hashedPassword } = result.rows[0];
@@ -59,7 +60,7 @@ class UserService {
     const match = await bcypt.compare(password, hashedPassword);
 
     if (!match) {
-      throw new InvariantError('Kredensial yang Anda berikan salah');
+      throw new AuthenticationError('Kredensial yang Anda berikan salah');
     }
 
     return id;
