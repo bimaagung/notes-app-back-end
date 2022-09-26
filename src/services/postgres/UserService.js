@@ -80,6 +80,21 @@ class UserService {
 
     return result.rows[0];
   }
+
+  async getUsersByUsername(username) {
+    const query = {
+      text: 'SELECT id, username, fullname FROM users WHERE username LIKE $1',
+      values: [`%${username}%`],
+    };
+
+    const result = await this._pool.query(query);
+
+    if (!result.rows.length) {
+      throw new NotFoundError('User tidak ditemukan');
+    }
+
+    return result.rows;
+  }
 }
 
 module.exports = UserService;
