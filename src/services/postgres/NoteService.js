@@ -101,7 +101,7 @@ class NoteService {
     const note = result.rows[0];
 
     if (note.owner !== owner) {
-      throw new AuthorizationError('Anda tidak berhak mengakses resource ini');
+      throw new AuthorizationError('You are not entitled to access this resource');
     }
   }
 
