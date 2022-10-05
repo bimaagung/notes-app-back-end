@@ -1,6 +1,3 @@
-/* eslint-disable no-undef */
-/* eslint-disable no-use-before-define */
-/* eslint-disable no-underscore-dangle */
 const { Pool } = require('pg');
 const { nanoid } = require('nanoid');
 const InvariantError = require('../../exceptions/InvariantError');
@@ -9,9 +6,10 @@ const AuthorizationError = require('../../exceptions/AuthorizationError');
 const { mapDBToModel } = require('../../utils');
 
 class NoteService {
-  constructor(collaborationService) {
+  constructor(collaborationService, cacheService) {
     this._pool = new Pool();
     this._collaborationService = collaborationService;
+    this._cacheService = cacheService;
   }
 
   async addNote({
@@ -32,6 +30,8 @@ class NoteService {
       throw new InvariantError('Catatan gagal ditambahkan');
     }
 
+    await this._cacheService.delete(`notes:${owner}`);
+
     return result.rows[0].id;
   }
 
@@ -42,7 +42,12 @@ class NoteService {
     };
 
     const result = await this._pool.query(query);
-    return result.rows.map(mapDBToModel);
+    const mappedResult = result.rows.map(mapDBToModel);
+
+    // catatan akan disimpan pada cache sebelum fungsi getNotes dikembalikan
+    await this._cacheService.set(`notes:${owner}`, JSON.stringify(mappedResult));
+
+    return mappedResult;
   }
 
   async getNoteById(id) {
@@ -62,7 +67,7 @@ class NoteService {
   async editNoteById(id, { title, body, tags }) {
     const updatedAt = new Date().toISOString();
     const query = {
-      text: 'UPDATE notes SET title = $1, body = $2, tags = $3, "updatedAt" = $4 WHERE id = $5 RETURNING id',
+      text: 'UPDATE notes SET title = $1, body = $2, tags = $3, "updatedAt" = $4 WHERE id = $5 RETURNING id, owner',
       values: [title, body, tags, updatedAt, id],
     };
 
@@ -71,11 +76,14 @@ class NoteService {
     if (!result.rows.length) {
       throw new NotFoundError('Gagal memperbarui catatan. Id tidak ditemukan');
     }
+
+    const { owner } = result.rows[0];
+    await this._cacheService.delete(`notes:${owner}`);
   }
 
   async deleteNoteById(id) {
     const query = {
-      text: 'DELETE FROM notes WHERE id = $1 RETURNING id',
+      text: 'DELETE FROM notes WHERE id = $1 RETURNING id, owner',
       values: [id],
     };
 
@@ -84,6 +92,9 @@ class NoteService {
     if (!result.rows.length) {
       throw new NotFoundError('Catatan gagal dihapus, Id tidak ditemukan');
     }
+
+    const { owner } = result.rows[0];
+    await this._cacheService.delete(`notes:${owner}`);
   }
 
   async verifyNoteOwner(id, owner) {
@@ -101,7 +112,7 @@ class NoteService {
     const note = result.rows[0];
 
     if (note.owner !== owner) {
-      throw new AuthorizationError('You are not entitled to access this resource');
+      throw new AuthorizationError('Anda tidak berhak mengakses resource ini');
     }
   }
 

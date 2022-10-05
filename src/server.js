@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const Hapi = require('@hapi/hapi');
 const Jwt = require('@hapi/jwt');
-// const path = require('path');
+const path = require('path');
 const Inert = require('@hapi/inert');
 
 // notes
@@ -34,17 +34,25 @@ const ExportsValidator = require('./validator/exports');
 
 // uploads
 const uploads = require('./api/uploads');
-// const StorageService = require('./services/storage/StorageService');
-const StorageService = require('./services/S3/StorageService');
+// local
+const StorageService = require('./services/storage/StorageService');
+// aws S3
+// const StorageService = require('./services/S3/StorageService');
 const UploadsValidator = require('./validator/uploads');
 
+// cache
+const CacheService = require('./services/redis/CacheService');
+
 const init = async () => {
+  const cacheService = new CacheService();
   const usersService = new UsersSevice();
   const authenticationsService = new AuthenticationsService();
-  const collaborationsService = new CollaborationsService();
-  const notesService = new NotesSevice(collaborationsService);
-  // const storageService = new StorageService(path.resolve(__dirname, 'api/uploads/file/images'));
-  const storageService = new StorageService();
+  const collaborationsService = new CollaborationsService(cacheService);
+  const notesService = new NotesSevice(collaborationsService, cacheService);
+  // local
+  const storageService = new StorageService(path.resolve(__dirname, 'api/uploads/file/images'));
+  // aws S3
+  // const storageService = new StorageService();
   const server = Hapi.server({
     port: process.env.PORT,
     host: process.env.HOST,
